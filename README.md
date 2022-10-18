@@ -36,3 +36,25 @@ If successful, responds with a JWT.
 `username` (required) Name for user account and what other users see as name
 
 `password` (required) Password for logging in
+
+# /chat
+
+All paths here are protected and require authorization token.
+
+## GET
+
+View all chats for logged in user.
+
+If successful, responds with json object containing a list of all the users available chats and with whom they are with.
+
+## POST
+
+Create a new chat with another user.
+
+If successful, responds with json object containing ID for the chat. ID is used in path for that chat eg. `/chat/{chatId}`.
+
+If a chat already exists with requested user then an error stating so is returned.
+
+### Body
+
+`username` (required) Name of account to create a new chat with.
