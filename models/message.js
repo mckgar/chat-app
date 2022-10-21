@@ -4,7 +4,8 @@ const MessageSchema = mongoose.Schema(
   {
     content: {
       type: String,
-      require: true
+      require: true,
+      maxLength: 500
     },
     timestamp: {
       type: Date,
