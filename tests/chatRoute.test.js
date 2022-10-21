@@ -13,6 +13,7 @@ let userCred3;
 
 let chat1;
 let badChat = new mongoose.Types.ObjectId();
+let activeChat;
 
 beforeAll(async () => {
   try {
@@ -59,11 +60,12 @@ beforeAll(async () => {
     ).save();
     chat1 = chat._id;
 
-    await new Chat(
+    const chat2 = await new Chat(
       {
         users: ['tester1', 'tester3']
       }
     ).save();
+    activeChat = chat2._id;
 
     // Create messages
     const message1 = await new Message(
@@ -304,7 +306,7 @@ describe('POST /chat', () => {
   });
 });
 
-describe('GET /chat/chatid', () => {
+describe('GET /chat/:chatid', () => {
   describe('Given valid credentials', () => {
     describe('Given valid chatid', () => {
       test('Responds with 200 status code', async () => {
@@ -383,6 +385,149 @@ describe('GET /chat/chatid', () => {
         expect(response.statusCode).toBe(401);
       }
     });
+  });
+});
+
+describe('POST /chat/:chatid', () => {
+  describe('Given valid credentials', () => {
+    describe('Given valid chatid', () => {
+      describe('Given valid message content', () => {
+        test('Responds with 201 status code', async () => {
+          const response = await request(app)
+            .post(`/api/chat/${activeChat}`)
+            .send({ message: "Testing" })
+            .set('Authorization', `Bearer ${userCred}`);
+          expect(response.statusCode).toBe(201);
+        });
+
+        test('Message is added to chat', async () => {
+          await request(app)
+            .post(`/api/chat/${activeChat}`)
+            .send({ message: "Testing one two three" })
+            .set('Authorization', `Bearer ${userCred}`);
+          const chat = await Chat.findById(activeChat).populate('messages');
+          let found = false;
+          if (chat.messages[chat.messages.length - 1].content === 'Testing one two three') {
+            found = true;
+          }
+          expect(found).toBeTruthy();
+        });
+      });
+
+      describe('Given invalid message content', () => {
+        test('Responds with 400 status code', async () => {
+          const data = [
+            null,
+            '',
+            '00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000'
+          ];
+          for (const content of data) {
+            const response = await request(app)
+              .post(`/api/chat/${activeChat}`)
+              .send({ message: content })
+              .set('Authorization', `Bearer ${userCred}`);
+            expect(response.statusCode).toBe(400);
+          }
+        });
+
+        test('Responds with json in content-type header', async () => {
+          const data = [
+            null,
+            '',
+            '00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000'
+          ];
+          for (const content of data) {
+            const response = await request(app)
+              .post(`/api/chat/${activeChat}`)
+              .send({ message: content })
+              .set('Authorization', `Bearer ${userCred}`);
+            expect(response.headers['content-type'])
+              .toEqual(expect.stringContaining('json'));
+          }
+        });
+
+        test('Responds with error(s) message in json object', async () => {
+          const data = [
+            null,
+            '',
+            '00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000'
+          ];
+          for (const content of data) {
+            const response = await request(app)
+              .post(`/api/chat/${activeChat}`)
+              .send({ message: content })
+              .set('Authorization', `Bearer ${userCred}`);
+            expect(response.body.errors).toBeDefined();
+          }
+        });
+      });
+    });
+
+    describe('Given invalid chatid', () => {
+      test('Responds with 404 status code', async () => {
+        const data = [
+          'badchat',
+          badChat
+        ];
+        for (const chatid of data) {
+          const response = await request(app)
+            .post(`/api/chat/${chatid}`)
+            .send({ message: 'content' })
+            .set('Authorization', `Bearer ${userCred}`);
+          expect(response.statusCode).toBe(404);
+        }
+      });
+    });
+  });
+
+  describe('Given invalid credentials', () => {
+    describe('Given valid chatid', () => {
+      test('Responds with 403 status code', async () => {
+        const response = await request(app)
+          .post(`/api/chat/${activeChat}`)
+          .send({ message: 'bad message' })
+          .set('Authorization', `Bearer ${userCred2}`);
+        expect(response.statusCode).toBe(403);
+      });
+
+      test('Message is not added to chat', async () => {
+        await request(app)
+          .post(`/api/chat/${activeChat}`)
+          .send({ message: 'bad message' })
+          .set('Authorization', `Bearer ${userCred2}`);
+        const chat = await Chat.findById(activeChat);
+        let found = false;
+        if (chat.messages[chat.messages.length - 1].content === 'bad message') {
+          found = true;
+        }
+        expect(found).toBeFalsy();
+      });
+    });
+  });
+
+  describe('Given no credentials', () => {
+    test('Responds with 401 status code', async () => {
+      for (const chatid of [badChat, activeChat]) {
+        const response = await request(app)
+          .post(`/api/chat/${chatid}`)
+          .send({ message: 'bad message' });
+        expect(response.statusCode).toBe(401);
+      }
+    });
+
+    describe('Given valid chatid', () => {
+      test('Message is not added to chat', async () => {
+        await request(app)
+          .post(`/api/chat/${activeChat}`)
+          .send({ message: 'bad message2' });
+        const chat = await Chat.findById(activeChat);
+        let found = false;
+        if (chat.messages[chat.messages.length - 1].content === 'bad message2') {
+          found = true;
+        }
+        expect(found).toBeFalsy();
+      })
+    })
   });
 });
 

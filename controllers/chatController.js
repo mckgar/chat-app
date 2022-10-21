@@ -115,7 +115,67 @@ exports.get_chat = [
       next();
       return;
     } catch (err) {
-      next(err)
+      next(err);
+    }
+  }
+];
+
+exports.send_message = [
+  passport.authenticate('jwt', { session: false }),
+  param('chatid')
+    .trim()
+    .escape(),
+  body('message')
+    .trim()
+    .isLength({ min: 1 })
+    .withMessage('Message content required')
+    .escape()
+    .isLength({ max: 500 })
+    .withMessage('Message content too long'),
+  async (req, res, next) => {
+    if (!mongoose.Types.ObjectId.isValid(req.params.chatid)) {
+      next();
+      return;
+    }
+    try {
+      const chat = await Chat.findById(req.params.chatid);
+      if (chat) {
+        let participant = false;
+        for (const chatter of chat.users) {
+          if (chatter === req.user.username) {
+            participant = true;
+            break;
+          }
+        }
+        if (!participant) {
+          res.sendStatus(403);
+          return;
+        }
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+          res.status(400).json(
+            {
+              errors: errors.array()
+            }
+          );
+          return;
+        }
+        const message = await new Message(
+          {
+            content: req.body.message,
+            author: req.user.username
+          }
+        ).save();
+        await chat.update(
+          { $push: { messages: message._id } }
+        );
+        res.sendStatus(201);
+        return;
+      }
+      next();
+      return;
+    } catch (err) {
+      next(err);
     }
   }
 ];
