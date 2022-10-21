@@ -1,10 +1,12 @@
 const Chat = require('../models/chat');
 const User = require('../models/user');
-const { body, validationResult } = require('express-validator');
+const Message = require('../models/message');
+const { body, param, validationResult } = require('express-validator');
 const passport = require('passport');
+const { default: mongoose } = require('mongoose');
 require('../passport');
 
-exports.get_chats = [
+exports.get_all_chats = [
   passport.authenticate('jwt', { session: false }),
   async (req, res, next) => {
     try {
@@ -27,7 +29,7 @@ exports.create_chat = [
     .trim()
     .isLength({ min: 1 }).withMessage('Username is required')
     .escape()
-    .isLength({ max: 20}).withMessage('Username is invalid')
+    .isLength({ max: 20 }).withMessage('Username is invalid')
     .custom(async value => {
       try {
         const valid = await User.findOne({ username: value });
@@ -74,6 +76,46 @@ exports.create_chat = [
       return;
     } catch (err) {
       next(err);
+    }
+  }
+];
+
+
+exports.get_chat = [
+  passport.authenticate('jwt', { session: false }),
+  param('chatid')
+    .trim()
+    .escape(),
+  async (req, res, next) => {
+    if (!mongoose.Types.ObjectId.isValid(req.params.chatid)) {
+      next();
+      return;
+    }
+    try {
+      const chat = await Chat.findById(req.params.chatid).populate('messages');
+      if (chat) {
+        let participant = false;
+        for (const chatter of chat.users) {
+          if (chatter === req.user.username) {
+            participant = true;
+            break;
+          }
+        }
+        if (!participant) {
+          res.sendStatus(403);
+          return;
+        }
+        res.status(200).json(
+          {
+            chat
+          }
+        );
+        return;
+      }
+      next();
+      return;
+    } catch (err) {
+      next(err)
     }
   }
 ];
