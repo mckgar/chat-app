@@ -51,10 +51,26 @@ If successful, responds with json object containing a list of all the users avai
 
 Create a new chat with another user.
 
-If successful, responds with json object containing ID for the chat. ID is used in path for that chat eg. `/chat/{chatId}`.
+If successful, responds with json object containing ID for the chat. ID is used in path for that chat eg. `/chat/:chatid`.
 
 If a chat already exists with requested user then an error stating so is returned.
 
 ### Body
 
 `username` (required) Name of account to create a new chat with.
+
+# /chat/:chatid
+
+Path for a specific chat with another user.
+
+## GET
+
+Responds with json object containing all messages in chronological order
+
+## POST
+
+Send new message in chat
+
+### Body
+
+`message` (required) Content of message to send in chat
