@@ -3,9 +3,8 @@
 Chat application API
 
 Goals: 
-* Users can create accounts and send private message to each other.
-* Users can have multiple chats with multiple different users.
-* Realtime (socket.io?)
+* Users can create accounts and send private message to each other
+* Users can have multiple chats with multiple different users
 
 Express, MongoDB
 
