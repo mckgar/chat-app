@@ -74,3 +74,9 @@ Send new message in chat
 ### Body
 
 `message` (required) Content of message to send in chat
+
+## DELETE
+
+Removes requesting user from the chat.
+
+If all users leave then all messages and the chat are deleted.
