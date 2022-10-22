@@ -166,7 +166,7 @@ exports.send_message = [
             author: req.user.username
           }
         ).save();
-        await chat.update(
+        await chat.updateOne(
           { $push: { messages: message._id } }
         );
         res.sendStatus(201);
@@ -176,6 +176,48 @@ exports.send_message = [
       return;
     } catch (err) {
       next(err);
+    }
+  }
+];
+
+exports.leave_chat = [
+  passport.authenticate('jwt', { session: false }),
+  param('chatid')
+    .trim()
+    .escape(),
+  async (req, res, next) => {
+    if (!mongoose.Types.ObjectId.isValid(req.params.chatid)) {
+      next();
+      return;
+    }
+    try {
+      const chat = await Chat.findById(req.params.chatid);
+      if (chat) {
+        let participant = false;
+        for (const chatter of chat.users) {
+          if (chatter === req.user.username) {
+            participant = true;
+            break;
+          }
+        }
+        if (!participant) {
+          res.sendStatus(403);
+          return;
+        }
+        await chat.updateOne({ $pull: { users: req.user.username } });
+        if (chat.users.length === 1) {
+          for (const message of chat.messages) {
+            await Message.deleteOne({ _id: message });
+          }
+          await Chat.findByIdAndDelete(req.params.chatid);
+        }
+        res.sendStatus(200);
+        return;
+      }
+      next();
+      return;
+    } catch (err) {
+      next();
     }
   }
 ];

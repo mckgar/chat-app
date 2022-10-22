@@ -10,10 +10,19 @@ const app = require('../app');
 let userCred;
 let userCred2;
 let userCred3;
+let badCred;
 
 let chat1;
 let badChat = new mongoose.Types.ObjectId();
 let activeChat;
+let deleteChatFail;
+let deleteChat1;
+let deleteChat2;
+let deleteChat3;
+let deleteChat4;
+
+let deleteMessage1;
+let deleteMessage2;
 
 beforeAll(async () => {
   try {
@@ -42,6 +51,14 @@ beforeAll(async () => {
     ).save();
     userCred3 = jwt.sign({ username: 'tester3' }, process.env.JWT_SECRET);
 
+    await new User(
+      {
+        username: 'badtester',
+        password: 'password'
+      }
+    ).save();
+    badCred = jwt.sign({ username: 'badtester' }, process.env.JWT_SECRET);
+
     const spareNames = ['tester4', 'tester5', 'tester6', 'tester7', 'tester8'];
     for (const name of spareNames) {
       await new User(
@@ -66,6 +83,41 @@ beforeAll(async () => {
       }
     ).save();
     activeChat = chat2._id;
+
+    const deleteFail = await new Chat(
+      {
+        users: ['tester1', 'tester2']
+      }
+    ).save();
+    deleteChatFail = deleteFail._id;
+
+    const delete1 = await new Chat(
+      {
+        users: ['tester1', 'tester2']
+      }
+    ).save();
+    deleteChat1 = delete1._id;
+
+    const delete2 = await new Chat(
+      {
+        users: ['tester1', 'tester2']
+      }
+    ).save();
+    deleteChat2 = delete2._id;
+
+    const delete3 = await new Chat(
+      {
+        users: ['tester1', 'tester2']
+      }
+    ).save();
+    deleteChat3 = delete3._id;
+
+    const delete4 = await new Chat(
+      {
+        users: ['tester1', 'tester2']
+      }
+    ).save();
+    deleteChat4 = delete4._id;
 
     // Create messages
     const message1 = await new Message(
@@ -99,6 +151,29 @@ beforeAll(async () => {
     for (const message of [message1, message2, message3, message4]) {
       await Chat.findByIdAndUpdate(
         chat1,
+        { $push: { messages: message._id } }
+      );
+    }
+
+    const badMessage1 = await new Message(
+      {
+        content: 'Bad message 1',
+        author: 'tester1'
+      }
+    ).save();
+    deleteMessage1 = badMessage1._id;
+
+    const badMessage2 = await new Message(
+      {
+        content: 'Bad message 2',
+        author: 'tester2'
+      }
+    ).save();
+    deleteMessage2 = badMessage2._id;
+
+    for (const message of [badMessage1, badMessage2]) {
+      await Chat.findByIdAndUpdate(
+        deleteChat4,
         { $push: { messages: message._id } }
       );
     }
@@ -371,7 +446,7 @@ describe('GET /chat/:chatid', () => {
       test('Responds with 403 status code', async () => {
         const response = await request(app)
           .get(`/api/chat/${chat1}`)
-          .set('Authorization', `Bearer ${userCred3}`);
+          .set('Authorization', `Bearer ${badCred}`);
         expect(response.statusCode).toBe(403);
       });
     });
@@ -486,7 +561,7 @@ describe('POST /chat/:chatid', () => {
         const response = await request(app)
           .post(`/api/chat/${activeChat}`)
           .send({ message: 'bad message' })
-          .set('Authorization', `Bearer ${userCred2}`);
+          .set('Authorization', `Bearer ${badCred}`);
         expect(response.statusCode).toBe(403);
       });
 
@@ -526,8 +601,81 @@ describe('POST /chat/:chatid', () => {
           found = true;
         }
         expect(found).toBeFalsy();
-      })
-    })
+      });
+    });
+  });
+});
+
+describe('DELETE /chat/:chatid', () => {
+  describe('Given valid credentials', () => {
+    describe('Given valid chatid', () => {
+      test('Responds with 200 status code', async () => {
+        const response = await request(app)
+          .delete(`/api/chat/${deleteChat1}`)
+          .set('Authorization', `Bearer ${userCred}`);
+        expect(response.statusCode).toBe(200);
+      });
+
+      test('Removes user from chat', async () => {
+        await request(app)
+          .delete(`/api/chat/${deleteChat2}`)
+          .set('Authorization', `Bearer ${userCred}`);
+        const chat = await Chat.findById(deleteChat2);
+        expect(chat.users.length).toBe(1);
+      });
+
+      describe('Both users leave chat', () => {
+        test('Chat is deleted', async () => {
+          await request(app)
+            .delete(`/api/chat/${deleteChat3}`)
+            .set('Authorization', `Bearer ${userCred}`);
+          await request(app)
+            .delete(`/api/chat/${deleteChat3}`)
+            .set('Authorization', `Bearer ${userCred2}`);
+          const chat = await Chat.findById(deleteChat3);
+          expect(chat).toBeFalsy();
+        })
+
+        test('All messages are deleted', async () => {
+          await request(app)
+            .delete(`/api/chat/${deleteChat4}`)
+            .set('Authorization', `Bearer ${userCred}`);
+          await request(app)
+            .delete(`/api/chat/${deleteChat4}`)
+            .set('Authorization', `Bearer ${userCred2}`);
+          const message1 = await Message.findById(deleteMessage1);
+          const message2 = await Message.findById(deleteMessage2);
+          expect(message1).toBeFalsy();
+          expect(message2).toBeFalsy();
+        });
+      });
+    });
+
+    describe('Given invalid chatid', () => {
+      test('Responds with 404 status code', async () => {
+        const response = await request(app)
+          .delete(`/api/chat/${badChat}`)
+          .set('Authorization', `Bearer ${userCred}`);
+        expect(response.statusCode).toBe(404);
+      });
+    });
+  });
+
+  describe('Given invalid credentials', () => {
+    test('Responds with 403 status code', async () => {
+      const response = await request(app)
+        .delete(`/api/chat/${deleteChatFail}`)
+        .set('Authorization', `Bearer ${badCred}`);
+      expect(response.statusCode).toBe(403);
+    });
+  });
+
+  describe('Given no credentials', () => {
+    test('Responds with 401 status code', async () => {
+      const response = await request(app)
+        .delete(`/api/chat/${deleteChatFail}`);
+      expect(response.statusCode).toBe(401);
+    });
   });
 });
 
